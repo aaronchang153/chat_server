@@ -11,21 +11,21 @@ import (
 )
 
 func main() {
-    log.SetOutput(os.Stdout)
-    err := run()
+    logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
+    err := run(logger)
     if err != nil {
         log.Fatal(err)
     }
 }
 
-func run() error {
+func run(logger *log.Logger) error {
     listener, err := net.Listen("tcp", ":8080")
     if err != nil {
         return err
     }
 
     server := &http.Server{
-        Handler: ChatServer{logf: log.Printf},
+        Handler: ChatServer{logger: logger},
         ReadTimeout: time.Second * 10,
         WriteTimeout: time.Second * 10,
     }
@@ -38,9 +38,9 @@ func run() error {
     signal.Notify(sigs, os.Interrupt)
     select {
     case err := <-errc:
-        log.Printf("failed to serve: %v", err)
+        log.Printf("failed to serve: %v\n", err)
     case sig := <-sigs:
-        log.Printf("terminating: %v", sig)
+        log.Printf("terminating: %v\n", sig)
     }
 
     ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

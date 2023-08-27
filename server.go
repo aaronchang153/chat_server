@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	"nhooyr.io/websocket"
@@ -14,13 +15,13 @@ const (
 )
 
 type ChatServer struct {
-    logf func(f string, v ...interface{})
+    logger *log.Logger
 }
 
 func (s ChatServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     conn, err := websocket.Accept(w, r, nil) //Can specify and check supported protocols if needed
     if err != nil {
-        s.logf("%v", err)
+        s.logger.Printf("%v\n", err)
         return
     }
     defer conn.Close(websocket.StatusInternalError, "Internal error")
@@ -32,7 +33,7 @@ func (s ChatServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     for {
         msgType, data, err = conn.Read(context)
         if err != nil {
-            s.logf("Error encountered while reading from WebSocket")
+            s.logger.Printf("Error encountered while reading from WebSocket: %v\n", err)
             break
         }
 
@@ -40,11 +41,11 @@ func (s ChatServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         case OPC_TEXT:
             err = s.HandleText(conn, &data, context)
         default:
-            continue
+            s.logger.Printf("Ignoring WebSocket message with opcode %#x\n", msgType)
         }
 
         if err != nil {
-            s.logf("Error encountered while handling last message")
+            s.logger.Printf("Error encountered while handling last message: %v\n", err)
         }
     }
 }
