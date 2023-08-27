@@ -1,27 +1,50 @@
 package main
 
 import (
-	"fmt"
+    "context"
+	"log"
 	"net"
+	"net/http"
+	"time"
+    "os"
+    "os/signal"
 )
 
 func main() {
-    fmt.Println("Hello world!")
+    log.SetOutput(os.Stdout)
+    err := run()
+    if err != nil {
+        log.Fatal(err)
+    }
+}
 
+func run() error {
     listener, err := net.Listen("tcp", ":8080")
     if err != nil {
-        fmt.Println(err)
-        return
+        return err
     }
 
-    for {
-        conn, err := listener.Accept()
-        if err != nil {
-            fmt.Println(err)
-            continue
-        }
-
-        fmt.Println("Received connection from", conn.RemoteAddr())
-        HandleClient(conn)
+    server := &http.Server{
+        Handler: ChatServer{logf: log.Printf},
+        ReadTimeout: time.Second * 10,
+        WriteTimeout: time.Second * 10,
     }
+    errc := make(chan error, 1)
+    go func() {
+        errc <- server.Serve(listener)
+    }()
+
+    sigs := make(chan os.Signal, 1)
+    signal.Notify(sigs, os.Interrupt)
+    select {
+    case err := <-errc:
+        log.Printf("failed to serve: %v", err)
+    case sig := <-sigs:
+        log.Printf("terminating: %v", sig)
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+    defer cancel()
+
+    return server.Shutdown(ctx)
 }

@@ -1,45 +1,39 @@
 package main
 
 import (
-    "encoding/binary"
-    "net"
-    "testing"
+	"context"
+	"log"
+	"net/http/httptest"
+	"os"
+	"testing"
+	"time"
+
+	"nhooyr.io/websocket"
 )
 
 func TestServer(t *testing.T) {
-    serverSock, clientSock := net.Pipe()
+    //t.Parallel()
+    log.SetOutput(os.Stdout)
 
-    go HandleClient(serverSock)
+	s := httptest.NewServer(ChatServer{
+		logf: t.Logf,
+	})
+	defer s.Close()
 
-    msgStr := "Hello world!"
-    data := []byte(msgStr)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 
-    var msgType MessageType = MSG_TEXT
-    WriteInt32(clientSock, int32(msgType), t)
+	conn, _, err := websocket.Dial(ctx, s.URL, &websocket.DialOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(websocket.StatusInternalError, "Failed to connect to chat server")
 
-    msgLen := int32(len(data))
-    WriteInt32(clientSock, msgLen, t)
+    data := []byte("Hello world!")
+    conn.Write(ctx, OPC_TEXT, data)
 
-    clientSock.Write(data)
-    var err error
-    var n int
-    n, err = clientSock.Read(data)
-    if err != nil {
-        t.Error(err)
-    }
+    _, recv, _ := conn.Read(ctx)
+    log.Println(string(recv))
 
-    recvStr := string(data[:n])
-    if recvStr != msgStr {
-        t.Fail()
-    }
-
-    msgType = MSG_CLOSE
-    WriteInt32(clientSock, int32(msgType), t)
-}
-
-func WriteInt32(conn net.Conn, data int32, t *testing.T) {
-    err := binary.Write(conn, binary.BigEndian, data)
-    if err != nil {
-        t.Error(err)
-    }
+	conn.Close(websocket.StatusNormalClosure, "")
 }
