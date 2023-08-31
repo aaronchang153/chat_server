@@ -1,41 +1,38 @@
 package main
 
 import (
-	"context"
+	"flag"
 	"log"
-	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/gorilla/websocket"
 )
 
+var addr = flag.String("addr", "localhost:8080", "http service address")
+
 func TestServer(t *testing.T) {
-	//t.Parallel()
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 
-	s := httptest.NewServer(ChatServer{
-		logger: logger,
-	})
-	defer s.Close()
+	go RunServer(logger)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	time.Sleep(3 * time.Second)
 
-	conn, _, err := websocket.Dial(ctx, s.URL, &websocket.DialOptions{})
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "websocket"}
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatal("dial:", err)
 	}
-	defer conn.Close(websocket.StatusInternalError, "Failed to connect to chat server")
+	defer conn.Close()
 
-	for i := 0; i < 10; i++ {
-		data := []byte("Hello world!")
-		conn.Write(ctx, OPC_TEXT, data)
+	conn.WriteMessage(websocket.TextMessage, []byte("Hello World!"))
 
-		_, recv, _ := conn.Read(ctx)
-		log.Println(string(recv))
+	_, buffer, err := conn.ReadMessage()
+	if err != nil {
+		log.Fatal("read:", err)
 	}
-
-	conn.Close(websocket.StatusNormalClosure, "")
+	logger.Println(string(buffer))
 }
