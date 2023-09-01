@@ -11,14 +11,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
+
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 func TestServer(t *testing.T) {
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
-
 	go RunServer(logger)
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "websocket"}
 
@@ -26,7 +26,7 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
-	defer conn.Close()
+	defer CloseConn(conn)
 
 	conn.WriteMessage(websocket.TextMessage, []byte("Hello World!"))
 
@@ -35,4 +35,12 @@ func TestServer(t *testing.T) {
 		log.Fatal("read:", err)
 	}
 	logger.Println(string(buffer))
+}
+
+func CloseConn(c *websocket.Conn) {
+	err := c.WriteMessage(websocket.CloseMessage, nil)
+	if err != nil {
+		logger.Println("Warning: Error while sending close message:", err)
+	}
+	c.Close()
 }
