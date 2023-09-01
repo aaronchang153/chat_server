@@ -15,6 +15,11 @@ type ChatServer struct {
 	upgrader websocket.Upgrader
 }
 
+type ChatClientHandler struct {
+	logger *log.Logger
+	conn   *websocket.Conn
+}
+
 func RunServer(logger *log.Logger) error {
 	ginEngine := gin.Default()
 
@@ -40,16 +45,35 @@ func HandleClient(conn *websocket.Conn) {
 	}
 }
 
-func (c *ChatServer) wsEndpoint(ctx *gin.Context) {
-	websocketConn, err := c.upgrader.Upgrade(
+func (s *ChatServer) wsEndpoint(ctx *gin.Context) {
+	websocketConn, err := s.upgrader.Upgrade(
 		ctx.Writer,
 		ctx.Request,
 		nil,
 	)
 	if err != nil {
-		c.logger.Println(err)
+		s.logger.Println(err)
 		return
 	}
 
-	HandleClient(websocketConn)
+	handler := ChatClientHandler{
+		logger: s.logger,
+		conn:   websocketConn,
+	}
+	go handler.HandleClient()
+}
+
+func (c *ChatClientHandler) HandleClient() {
+	for {
+		messageType, message, err := c.conn.ReadMessage()
+		if err != nil {
+			c.logger.Println(err)
+			break
+		}
+
+		if messageType == websocket.CloseMessage {
+			break
+		}
+		c.conn.WriteMessage(messageType, message)
+	}
 }
