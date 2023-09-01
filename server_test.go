@@ -36,6 +36,7 @@ func TestServer(t *testing.T) {
 	for _, conn := range connections {
 		conn.WriteMessage(websocket.TextMessage, []byte("Hello World!"))
 
+		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 		_, buffer, err := conn.ReadMessage()
 		if err != nil {
 			log.Fatal("read:", err)
