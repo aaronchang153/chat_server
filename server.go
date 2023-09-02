@@ -20,6 +20,16 @@ type ChatClientHandler struct {
 	conn   *websocket.Conn
 }
 
+type ClientMessage struct {
+	MessageType int
+	Message     string
+}
+
+const (
+	MSG_ERROR int = -1
+	MSG_ECHO  int = 0
+)
+
 func RunServer(logger *log.Logger) error {
 	ginEngine := gin.Default()
 
@@ -65,15 +75,28 @@ func (s *ChatServer) wsEndpoint(ctx *gin.Context) {
 
 func (c *ChatClientHandler) HandleClient() {
 	for {
-		messageType, message, err := c.conn.ReadMessage()
+		//messageType, message, err := c.conn.ReadMessage()
+		var message ClientMessage
+		err := c.conn.ReadJSON(&message)
 		if err != nil {
-			c.logger.Println(err)
+			c.conn.Close()
 			break
 		}
 
-		if messageType == websocket.CloseMessage {
-			break
-		}
-		c.conn.WriteMessage(messageType, message)
+		c.ProcessMessage(message)
 	}
+}
+
+func (c *ChatClientHandler) ProcessMessage(m ClientMessage) error {
+	switch m.MessageType {
+	case MSG_ECHO:
+		c.conn.WriteJSON(m)
+	default:
+		response := ClientMessage{
+			MessageType: MSG_ERROR,
+			Message:     "Malformatted request",
+		}
+		c.conn.WriteJSON(response)
+	}
+	return nil
 }

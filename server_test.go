@@ -22,8 +22,9 @@ func TestServer(t *testing.T) {
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "websocket"}
 
-	connections := make([]*websocket.Conn, 10)
-	for i := 0; i < 10; i++ {
+	const NUM_CONNECTIONS int = 10
+	connections := make([]*websocket.Conn, NUM_CONNECTIONS)
+	for i := 0; i < NUM_CONNECTIONS; i++ {
 		conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 		if err != nil {
 			log.Fatal("dial:", err)
@@ -34,24 +35,28 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, conn := range connections {
-		conn.WriteMessage(websocket.TextMessage, []byte("Hello World!"))
+		msg := ClientMessage{
+			MessageType: MSG_ECHO,
+			Message:     "Hello World!",
+		}
+		conn.WriteJSON(msg)
 
 		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-		_, buffer, err := conn.ReadMessage()
+
+		var resp ClientMessage
+		err := conn.ReadJSON(&resp)
 		if err != nil {
 			log.Fatal("read:", err)
 		}
-		//logger.Println(string(buffer))
-		if string(buffer) != "Hello World!" {
+		if resp.Message != msg.Message {
 			logger.Fatal("Mismatch on echo operation")
 		}
 	}
 }
 
 func CloseConn(c *websocket.Conn) {
-	err := c.WriteMessage(websocket.CloseMessage, nil)
+	err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		logger.Println("Warning: Error while sending close message:", err)
 	}
-	c.Close()
 }
