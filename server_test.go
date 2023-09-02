@@ -35,20 +35,17 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, conn := range connections {
-		msg := ClientMessage{
-			MessageType: MSG_ECHO,
-			Message:     "Hello World!",
-		}
-		conn.WriteJSON(msg)
+		msg := "Hello World!"
+		conn.WriteMessage(websocket.TextMessage, []byte(msg))
 
 		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
-		var resp ClientMessage
-		err := conn.ReadJSON(&resp)
+		var resp []byte
+		_, resp, err := conn.ReadMessage()
 		if err != nil {
 			log.Fatal("read:", err)
 		}
-		if resp.Message != msg.Message {
+		if string(resp) != msg {
 			logger.Fatal("Mismatch on echo operation")
 		}
 	}
